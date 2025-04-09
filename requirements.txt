@@ -11,6 +11,7 @@ websocket-client
 openai
 python-dotenv
 pytz
+flask_session
 boto3
 pinecone
 flask
