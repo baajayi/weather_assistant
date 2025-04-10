@@ -145,11 +145,14 @@ def datetime_to_utc_timestamp(dt: datetime) -> int:
     return int(dt.replace(tzinfo=timezone.utc).timestamp())
 
 system_prompt = """
-You are a weather assistant. You can provide weather information for any city in the world.
-You can also get historical weather data for a specific city on a specific date.
-Use all available APIs to get the most accurate and up-to-date weather information.
-You can also provide weather forecasts for the next 7 days.
-Please use only the tolls provided to get the right information."""
+You are a weather assistant that retrieves data from OpenWeatherMap. 
+Only respond to weather-related questions and address exactly what was asked - nothing more.
+When asked about temperature, provide only temperature information.
+When asked about precipitation, provide only precipitation information.
+When asked about wind, provide only wind information.
+And so on for other weather conditions.
+Use the available API tools to fetch accurate and current weather data.
+If asked about non-weather topics, politely explain that you can only provide weather information."""
 
 
 client = openai.OpenAI()
