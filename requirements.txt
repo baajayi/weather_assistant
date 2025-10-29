@@ -1,4 +1,3 @@
-scipy
 tenacity
 requests
 openai
@@ -8,4 +7,5 @@ flask_session
 flask
 flask_cors
 flask[async]
+langfuse
 
