@@ -4,243 +4,894 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Weather Assistant</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/marked@11.1.1/marked.min.js"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style>
         :root {
-            --primary-color: #1a73e8;
-            --secondary-color: #f8f9fa;
-            --background-gradient: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+            --primary: #0ea5e9;
+            --primary-dark: #0284c7;
+            --primary-light: #38bdf8;
+            --bg-primary: #ffffff;
+            --bg-secondary: #f0f9ff;
+            --bg-tertiary: #e0f2fe;
+            --bg-chat: #ffffff;
+            --text-primary: #0f172a;
+            --text-secondary: #475569;
+            --text-tertiary: #94a3b8;
+            --border: #e2e8f0;
+            --border-light: #f1f5f9;
+            --user-bubble: #0ea5e9;
+            --user-text: #ffffff;
+            --assistant-bubble: #f0f9ff;
+            --assistant-text: #0f172a;
+            --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+            --shadow: 0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1);
+            --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+            --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+            --radius: 12px;
+            --radius-lg: 16px;
+            --radius-full: 9999px;
+        }
+
+        [data-theme="dark"] {
+            --bg-primary: #0c1a2e;
+            --bg-secondary: #0f2744;
+            --bg-tertiary: #1a3a5c;
+            --bg-chat: #0c1a2e;
+            --text-primary: #f0f9ff;
+            --text-secondary: #bae6fd;
+            --text-tertiary: #7dd3fc;
+            --border: #1e3a5f;
+            --border-light: #0f2744;
+            --assistant-bubble: #0f2744;
+            --assistant-text: #f0f9ff;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        html, body {
+            height: 100%;
         }
 
         body {
-            background: var(--background-gradient);
-            min-height: 100vh;
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            line-height: 1.5;
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
         }
 
-        .chat-container {
-            max-width: 800px;
-            margin: 2rem auto;
-            background: white;
-            border-radius: 15px;
-            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-            overflow: hidden;
+        .app-container {
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            max-width: 900px;
+            margin: 0 auto;
+            background: var(--bg-chat);
         }
 
-        .chat-header {
-            background: var(--primary-color);
+        /* Header */
+        .header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 16px 24px;
+            border-bottom: 1px solid var(--border);
+            background: var(--bg-primary);
+            flex-shrink: 0;
+        }
+
+        .header-left {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .logo {
+            width: 40px;
+            height: 40px;
+            background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
+            border-radius: var(--radius);
+            display: flex;
+            align-items: center;
+            justify-content: center;
             color: white;
-            padding: 1.5rem;
-            border-radius: 15px 15px 0 0;
+            font-size: 20px;
         }
 
-        .chat-messages {
-            height: 60vh;
+        .header-title {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .header-title h1 {
+            font-size: 16px;
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+
+        .header-title span {
+            font-size: 12px;
+            color: var(--text-tertiary);
+        }
+
+        .header-actions {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .btn-icon {
+            width: 36px;
+            height: 36px;
+            border-radius: var(--radius);
+            border: 1px solid var(--border);
+            background: var(--bg-primary);
+            color: var(--text-secondary);
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.15s ease;
+        }
+
+        .btn-icon:hover {
+            background: var(--bg-secondary);
+            color: var(--text-primary);
+        }
+
+        .btn-icon svg {
+            width: 18px;
+            height: 18px;
+        }
+
+        .btn-new-chat {
+            padding: 8px 16px;
+            border-radius: var(--radius);
+            border: 1px solid var(--border);
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            transition: all 0.15s ease;
+        }
+
+        .btn-new-chat:hover {
+            background: var(--bg-secondary);
+        }
+
+        .btn-new-chat svg {
+            width: 16px;
+            height: 16px;
+        }
+
+        /* Messages Area */
+        .messages-container {
+            flex: 1;
             overflow-y: auto;
-            padding: 1.5rem;
+            padding: 24px;
+            scroll-behavior: smooth;
         }
 
-        .message {
-            margin-bottom: 1.5rem;
-            animation: fadeIn 0.3s ease-in;
+        .messages-container::-webkit-scrollbar {
+            width: 6px;
         }
 
-        .user-message {
-            background: var(--primary-color);
-            color: white;
-            border-radius: 15px 15px 0 15px;
-            margin-left: auto;
-            max-width: 80%;
+        .messages-container::-webkit-scrollbar-track {
+            background: transparent;
         }
 
-        .assistant-message {
-            background: var(--secondary-color);
-            border-radius: 15px 15px 15px 0;
-            max-width: 80%;
+        .messages-container::-webkit-scrollbar-thumb {
+            background: var(--border);
+            border-radius: 3px;
         }
 
-        .input-container {
-            padding: 1.5rem;
-            background: rgba(248, 249, 250, 0.9);
-            border-top: 1px solid #dee2e6;
+        .messages-container::-webkit-scrollbar-thumb:hover {
+            background: var(--text-tertiary);
         }
 
-        .weather-icon {
-            font-size: 1.5rem;
-            margin-right: 0.5rem;
-        }
-
-        .loading {
-            display: none;
-            color: var(--primary-color);
+        /* Welcome Screen */
+        .welcome-screen {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100%;
             text-align: center;
-            padding: 1rem;
+            padding: 40px 20px;
+            animation: fadeIn 0.5s ease;
         }
 
         @keyframes fadeIn {
-            from { opacity: 0; transform: translateY(20px); }
+            from { opacity: 0; transform: translateY(10px); }
             to { opacity: 1; transform: translateY(0); }
         }
 
-        .history-item {
-            transition: transform 0.2s ease;
-            cursor: pointer;
+        .welcome-icon {
+            width: 72px;
+            height: 72px;
+            background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
+            border-radius: var(--radius-lg);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 24px;
+            box-shadow: var(--shadow-lg);
+            font-size: 36px;
         }
 
-        .history-item:hover {
-            transform: translateX(10px);
+        .welcome-screen h2 {
+            font-size: 24px;
+            font-weight: 600;
+            margin-bottom: 8px;
+            color: var(--text-primary);
+        }
+
+        .welcome-screen p {
+            font-size: 15px;
+            color: var(--text-secondary);
+            max-width: 420px;
+            margin-bottom: 32px;
+        }
+
+        .suggestions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            justify-content: center;
+            max-width: 600px;
+        }
+
+        .suggestion {
+            padding: 10px 16px;
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-full);
+            font-size: 14px;
+            color: var(--text-primary);
+            cursor: pointer;
+            transition: all 0.15s ease;
+            font-family: inherit;
+        }
+
+        .suggestion:hover {
+            background: var(--bg-tertiary);
+            border-color: var(--primary);
+            color: var(--primary);
+        }
+
+        /* Message Styles */
+        .message {
+            display: flex;
+            gap: 16px;
+            margin-bottom: 24px;
+            animation: messageIn 0.3s ease;
+        }
+
+        @keyframes messageIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .message-avatar {
+            width: 32px;
+            height: 32px;
+            border-radius: var(--radius);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 16px;
+            flex-shrink: 0;
+        }
+
+        .message.user .message-avatar {
+            background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+        }
+
+        .message.assistant .message-avatar {
+            background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
+        }
+
+        .message-content {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .message-header {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 4px;
+        }
+
+        .message-sender {
+            font-size: 14px;
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+
+        .message-time {
+            font-size: 12px;
+            color: var(--text-tertiary);
+        }
+
+        .message-bubble {
+            font-size: 15px;
+            line-height: 1.7;
+            color: var(--text-primary);
+        }
+
+        .message.user .message-bubble {
+            background: var(--user-bubble);
+            color: var(--user-text);
+            padding: 12px 16px;
+            border-radius: var(--radius-lg);
+            border-top-left-radius: 4px;
+            display: inline-block;
+            max-width: 85%;
+        }
+
+        .message.assistant .message-bubble {
+            color: var(--assistant-text);
+        }
+
+        /* Markdown Styles */
+        .message-bubble p { margin-bottom: 12px; }
+        .message-bubble p:last-child { margin-bottom: 0; }
+        .message-bubble strong { font-weight: 600; }
+        .message-bubble em { font-style: italic; }
+
+        .message-bubble code {
+            background: rgba(0, 0, 0, 0.08);
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-family: 'SF Mono', Monaco, 'Courier New', monospace;
+            font-size: 13px;
+        }
+
+        [data-theme="dark"] .message-bubble code {
+            background: rgba(255, 255, 255, 0.1);
+        }
+
+        .message.user .message-bubble code {
+            background: rgba(255, 255, 255, 0.2);
+        }
+
+        .message-bubble pre {
+            background: var(--bg-tertiary);
+            padding: 16px;
+            border-radius: var(--radius);
+            overflow-x: auto;
+            margin: 12px 0;
+        }
+
+        .message-bubble pre code {
+            background: transparent;
+            padding: 0;
+        }
+
+        .message-bubble ul, .message-bubble ol {
+            margin: 12px 0;
+            padding-left: 24px;
+        }
+
+        .message-bubble li { margin-bottom: 4px; }
+
+        .message-bubble blockquote {
+            border-left: 3px solid var(--primary);
+            padding-left: 16px;
+            margin: 12px 0;
+            color: var(--text-secondary);
+            font-style: italic;
+        }
+
+        .message-bubble a { color: var(--primary); text-decoration: none; }
+        .message-bubble a:hover { text-decoration: underline; }
+        .message.user .message-bubble a { color: white; text-decoration: underline; }
+
+        /* Streaming Cursor */
+        .cursor {
+            display: inline-block;
+            width: 2px;
+            height: 18px;
+            background: var(--primary);
+            margin-left: 2px;
+            animation: cursorBlink 1s infinite;
+            vertical-align: text-bottom;
+        }
+
+        @keyframes cursorBlink {
+            0%, 50% { opacity: 1; }
+            51%, 100% { opacity: 0; }
+        }
+
+        /* Thinking indicator */
+        .thinking {
+            display: flex;
+            gap: 4px;
+            align-items: center;
+            padding: 4px 0;
+        }
+
+        .thinking span {
+            width: 8px;
+            height: 8px;
+            background: var(--primary);
+            border-radius: 50%;
+            animation: bounce 1.2s infinite;
+        }
+
+        .thinking span:nth-child(2) { animation-delay: 0.2s; }
+        .thinking span:nth-child(3) { animation-delay: 0.4s; }
+
+        @keyframes bounce {
+            0%, 60%, 100% { transform: translateY(0); opacity: 0.4; }
+            30% { transform: translateY(-6px); opacity: 1; }
+        }
+
+        /* Message Actions */
+        .message-actions {
+            display: flex;
+            gap: 4px;
+            margin-top: 8px;
+            opacity: 0;
+            transition: opacity 0.15s ease;
+        }
+
+        .message:hover .message-actions {
+            opacity: 1;
+        }
+
+        .action-btn {
+            padding: 6px 10px;
+            border: none;
+            background: transparent;
+            color: var(--text-tertiary);
+            font-size: 12px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            border-radius: 6px;
+            transition: all 0.15s ease;
+            font-family: inherit;
+        }
+
+        .action-btn:hover {
+            background: var(--bg-secondary);
+            color: var(--text-primary);
+        }
+
+        .action-btn.copied { color: #10b981; }
+
+        .action-btn svg {
+            width: 14px;
+            height: 14px;
+        }
+
+        /* Input Area */
+        .input-area {
+            padding: 16px 24px 24px;
+            background: var(--bg-primary);
+            border-top: 1px solid var(--border);
+            flex-shrink: 0;
+        }
+
+        .input-container {
+            display: flex;
+            align-items: flex-end;
+            gap: 12px;
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-lg);
+            padding: 8px 8px 8px 16px;
+            transition: border-color 0.15s ease, box-shadow 0.15s ease;
+        }
+
+        .input-container:focus-within {
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px rgba(14, 165, 233, 0.1);
+        }
+
+        .input-wrapper {
+            flex: 1;
+            display: flex;
+            align-items: center;
+        }
+
+        #queryInput {
+            width: 100%;
+            border: none;
+            background: transparent;
+            font-size: 15px;
+            font-family: inherit;
+            color: var(--text-primary);
+            resize: none;
+            max-height: 150px;
+            line-height: 1.5;
+            padding: 8px 0;
+        }
+
+        #queryInput::placeholder { color: var(--text-tertiary); }
+        #queryInput:focus { outline: none; }
+
+        .btn-send {
+            width: 40px;
+            height: 40px;
+            border-radius: var(--radius);
+            border: none;
+            background: var(--primary);
+            color: white;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.15s ease;
+            flex-shrink: 0;
+        }
+
+        .btn-send:hover:not(:disabled) { background: var(--primary-dark); }
+
+        .btn-send:disabled {
+            background: var(--bg-tertiary);
+            color: var(--text-tertiary);
+            cursor: not-allowed;
+        }
+
+        .btn-send svg { width: 18px; height: 18px; }
+
+        .btn-location {
+            width: 40px;
+            height: 40px;
+            border-radius: var(--radius);
+            border: 1px solid var(--border);
+            background: var(--bg-primary);
+            color: var(--text-secondary);
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.15s ease;
+            flex-shrink: 0;
+        }
+        .btn-location:hover { background: var(--bg-secondary); color: var(--primary); }
+        .btn-location.locating { color: var(--primary); animation: spin 1s linear infinite; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        .input-hint {
+            text-align: center;
+            padding-top: 12px;
+            font-size: 12px;
+            color: var(--text-tertiary);
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .header { padding: 12px 16px; }
+            .header-title h1 { font-size: 14px; }
+            .btn-new-chat span { display: none; }
+            .messages-container { padding: 16px; }
+            .input-area { padding: 12px 16px 16px; }
+            .message { gap: 12px; }
+            .message-avatar { width: 28px; height: 28px; font-size: 14px; }
+            .suggestions { flex-direction: column; }
+            .suggestion { text-align: center; }
         }
     </style>
-    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
 </head>
 <body>
-    <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
-        <div class="container">
-            <a class="navbar-brand" href="#">
-                <i class="fas fa-cloud-sun weather-icon"></i>
-                Weather Assistant
-            </a>
+    <div class="app-container">
+        <header class="header">
+            <div class="header-left">
+                <div class="logo">⛅</div>
+                <div class="header-title">
+                    <h1>Weather Assistant</h1>
+                    <span>Powered by OpenWeatherMap</span>
+                </div>
+            </div>
+            <div class="header-actions">
+                <button class="btn-icon" onclick="toggleTheme()" title="Toggle theme">
+                    <svg id="themeIcon" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" />
+                    </svg>
+                </button>
+                <button class="btn-new-chat" onclick="resetConversation()">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+                    </svg>
+                    <span>New Chat</span>
+                </button>
+            </div>
+        </header>
+
+        <div class="messages-container" id="messagesContainer">
+            <div class="welcome-screen" id="welcomeScreen">
+                <div class="welcome-icon">⛅</div>
+                <h2>Welcome to Weather Assistant</h2>
+                <p>Ask me about current conditions, forecasts, or historical weather for any city around the world.</p>
+                <div class="suggestions">
+                    <button class="suggestion" onclick="askQuestion('What is the weather in New York right now?')">🌆 New York weather</button>
+                    <button class="suggestion" onclick="askQuestion('Give me a 5-day forecast for London.')">📅 London 5-day forecast</button>
+                    <button class="suggestion" onclick="askQuestion('Will it rain in Tokyo tomorrow?')">🌧️ Rain in Tokyo?</button>
+                    <button class="suggestion" onclick="askQuestion('What is the humidity and wind speed in Miami?')">💨 Miami conditions</button>
+                    <button class="suggestion" onclick="requestLocation()">📍 My location</button>
+                </div>
+            </div>
         </div>
-    </nav>
 
-    <div class="container my-4">
-        <div class="chat-container">
-            <div class="chat-header">
-                <h3 class="mb-0">Ask about the Weather</h3>
-                <p class="mb-0">Get current conditions and forecasts</p>
-            </div>
-
-            <div class="chat-messages" id="chatMessages">
-                <div class="message assistant-message p-3">
-                    <p class="mb-0">Hello! I'm your weather assistant. Ask me about:</p>
-                    <ul class="list-unstyled mt-2">
-                        <li><i class="fas fa-sun"></i> Current weather in any city</li>
-                        <li><i class="fas fa-cloud-showers-heavy"></i> 7-day forecasts</li>
-                    </ul>
-                </div>
-            </div>
-
-            <div class="loading" id="loading">
-                <div class="spinner-border text-primary" role="status">
-                    <span class="visually-hidden">Loading...</span>
-                </div>
-                <span class="ms-2">Analyzing weather data...</span>
-            </div>
-
+        <div class="input-area">
             <div class="input-container">
-                <form id="weatherForm" class="d-flex gap-2">
-                    <input type="text" class="form-control" id="questionInput" 
-                           placeholder="Ask about weather (e.g., 'What's the weather in Tokyo?')" 
-                           autocomplete="off">
-                    <button type="submit" class="btn btn-primary">
-                        <i class="fas fa-paper-plane"></i> Ask
-                    </button>
-                </form>
-            </div>
-        </div>
-
-        <div class="mt-4">
-            <h5>Example Queries:</h5>
-            <div class="d-flex flex-wrap gap-2">
-                <button class="btn btn-outline-primary example-query">
-                    Current weather in Paris
+                <div class="input-wrapper">
+                    <textarea
+                        id="queryInput"
+                        placeholder="Ask about the weather anywhere..."
+                        rows="1"
+                        aria-label="Message input"
+                    ></textarea>
+                </div>
+                <button class="btn-location" id="locationBtn" onclick="requestLocation()" title="Use my location" aria-label="Use my location">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" width="18" height="18">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                    </svg>
                 </button>
-                <button class="btn btn-outline-primary example-query">
-                    Will it rain in New York tomorrow?
+                <button class="btn-send" onclick="sendQuery()" id="sendBtn" aria-label="Send message">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
+                    </svg>
                 </button>
             </div>
+            <div class="input-hint">Press Enter to send &bull; Shift + Enter for new line</div>
         </div>
     </div>
 
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script>
-        document.getElementById('weatherForm').addEventListener('submit', async (e) => {
-    e.preventDefault();
-    const input = document.getElementById('questionInput');
-    const question = input.value.trim();
-    if (!question) return;
+        // Configure marked
+        marked.setOptions({ breaks: true, gfm: true });
 
-    showLoading(true);
-    addMessage(question, 'user');
-    input.value = '';
-
-    try {
-        const response = await fetch('/ask', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'Accept': 'application/json'
-            },
-            body: JSON.stringify({ question })
-        });
-
-        if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-        
-        const result = await handleResponse(response);
-        addMessage(result, 'assistant');
-    } catch (error) {
-        addMessage(`Error: ${error.message}`, 'assistant', true);
-    } finally {
-        showLoading(false);
-    }
-});
-
-        document.querySelectorAll('.example-query').forEach(button => {
-            button.addEventListener('click', () => {
-                document.getElementById('questionInput').value = button.textContent.trim();
-            });
-        });
-
-        function addMessage(text, role, isError = false) {
-            const messagesDiv = document.getElementById('chatMessages');
-            const messageDiv = document.createElement('div');
-            messageDiv.className = `message ${role}-message p-3 mb-2 ${isError ? 'bg-danger text-white' : ''}`;
-            messageDiv.innerHTML = `<p class="mb-0">${text}</p>`;
-            messagesDiv.appendChild(messageDiv);
-            messagesDiv.scrollTop = messagesDiv.scrollHeight;
+        // Theme
+        function toggleTheme() {
+            const html = document.documentElement;
+            const newTheme = html.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
+            html.setAttribute('data-theme', newTheme);
+            localStorage.setItem('theme', newTheme);
+            updateThemeIcon(newTheme);
         }
 
-        function showLoading(show) {
-            document.getElementById('loading').style.display = show ? 'flex' : 'none';
+        function updateThemeIcon(theme) {
+            const icon = document.getElementById('themeIcon');
+            if (theme === 'dark') {
+                icon.innerHTML = '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" />';
+            } else {
+                icon.innerHTML = '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" />';
+            }
         }
 
-        // Handle Enter key
-        document.getElementById('questionInput').addEventListener('keypress', (e) => {
+        const savedTheme = localStorage.getItem('theme') || 'light';
+        document.documentElement.setAttribute('data-theme', savedTheme);
+        updateThemeIcon(savedTheme);
+
+        // Auto-resize textarea
+        const textarea = document.getElementById('queryInput');
+        textarea.addEventListener('input', function () {
+            this.style.height = 'auto';
+            this.style.height = Math.min(this.scrollHeight, 150) + 'px';
+        });
+
+        textarea.addEventListener('keydown', function (e) {
             if (e.key === 'Enter' && !e.shiftKey) {
                 e.preventDefault();
-                document.getElementById('weatherForm').dispatchEvent(new Event('submit'));
+                sendQuery();
             }
         });
-    </script>
-    <script>
-        // Update the addMessage function
-        function addMessage(text, role, isError = false) {
-            const messagesDiv = document.getElementById('chatMessages');
-            const messageDiv = document.createElement('div');
-            messageDiv.className = `message ${role}-message p-3 mb-2 ${isError ? 'bg-danger text-white' : ''}`;
-            
-            // Parse markdown and sanitize output
-            const sanitized = DOMPurify.sanitize(marked.parse(text));
-            messageDiv.innerHTML = `
-                <div class="markdown-content">
-                    ${sanitized}
-                </div>
-            `;
-            
-            messagesDiv.appendChild(messageDiv);
-            messagesDiv.scrollTop = messagesDiv.scrollHeight;
+
+        function hideWelcome() {
+            const welcome = document.getElementById('welcomeScreen');
+            if (welcome) welcome.style.display = 'none';
         }
 
-        // Update the fetch call to handle HTML response
-        async function handleResponse(response) {
-            const contentType = response.headers.get('content-type');
-            if (contentType && contentType.includes('application/json')) {
-                const data = await response.json();
-                return data.response;
-            }
-            return 'Received unexpected response format';
+        function askQuestion(question) {
+            document.getElementById('queryInput').value = question;
+            sendQuery();
         }
+
+        function getCurrentTime() {
+            return new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
+        }
+
+        async function sendQuery() {
+            const input = document.getElementById('queryInput');
+            const container = document.getElementById('messagesContainer');
+            const sendBtn = document.getElementById('sendBtn');
+            const query = input.value.trim();
+            if (!query) return;
+
+            hideWelcome();
+            sendBtn.disabled = true;
+            input.disabled = true;
+
+            // User message
+            container.appendChild(createMessage('user', query));
+            input.value = '';
+            input.style.height = 'auto';
+
+            // Assistant placeholder with thinking dots
+            const messageId = 'msg-' + Date.now();
+            const assistantMsg = createAssistantMessage(messageId);
+            container.appendChild(assistantMsg);
+            container.scrollTop = container.scrollHeight;
+
+            try {
+                const response = await fetch('/ask', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ question: query })
+                });
+
+                if (!response.ok) throw new Error(`HTTP ${response.status}`);
+
+                const data = await response.json();
+                const text = data.response || 'No response received.';
+                finalizeMessage(messageId, text);
+
+            } catch (error) {
+                console.error('Request error:', error);
+                finalizeMessage(messageId, 'Sorry, I encountered an error. Please try again.');
+            }
+
+            sendBtn.disabled = false;
+            input.disabled = false;
+            input.focus();
+            container.scrollTop = container.scrollHeight;
+        }
+
+        function createMessage(role, content) {
+            const div = document.createElement('div');
+            div.className = `message ${role}`;
+            const avatar = role === 'user' ? '👤' : '⛅';
+            const sender = role === 'user' ? 'You' : 'Weather Assistant';
+            div.innerHTML = `
+                <div class="message-avatar">${avatar}</div>
+                <div class="message-content">
+                    <div class="message-header">
+                        <span class="message-sender">${sender}</span>
+                        <span class="message-time">${getCurrentTime()}</span>
+                    </div>
+                    <div class="message-bubble">${role === 'user' ? escapeHtml(content) : content}</div>
+                </div>`;
+            return div;
+        }
+
+        function createAssistantMessage(messageId) {
+            const div = document.createElement('div');
+            div.className = 'message assistant';
+            div.id = messageId;
+            div.innerHTML = `
+                <div class="message-avatar">⛅</div>
+                <div class="message-content">
+                    <div class="message-header">
+                        <span class="message-sender">Weather Assistant</span>
+                        <span class="message-time">${getCurrentTime()}</span>
+                    </div>
+                    <div class="message-bubble" id="bubble-${messageId}">
+                        <div class="thinking"><span></span><span></span><span></span></div>
+                    </div>
+                </div>`;
+            return div;
+        }
+
+        function finalizeMessage(messageId, content) {
+            const bubble = document.getElementById(`bubble-${messageId}`);
+            if (!bubble) return;
+            bubble.innerHTML = marked.parse(content);
+
+            bubble.querySelectorAll('a').forEach(link => {
+                link.setAttribute('target', '_blank');
+                link.setAttribute('rel', 'noopener noreferrer');
+            });
+
+            const msgContent = bubble.parentElement;
+            if (!msgContent.querySelector('.message-actions')) {
+                const actions = document.createElement('div');
+                actions.className = 'message-actions';
+                actions.innerHTML = `
+                    <button class="action-btn" onclick="copyMessage(this, \`${escapeForJs(content)}\`)">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                        </svg>
+                        Copy
+                    </button>`;
+                msgContent.appendChild(actions);
+            }
+        }
+
+        function copyMessage(btn, content) {
+            navigator.clipboard.writeText(content).then(() => {
+                btn.classList.add('copied');
+                btn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" /></svg> Copied!`;
+                setTimeout(() => {
+                    btn.classList.remove('copied');
+                    btn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" /></svg> Copy`;
+                }, 2000);
+            });
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        function escapeForJs(str) {
+            return str.replace(/`/g, '\\`').replace(/\$/g, '\\$');
+        }
+
+        function resetConversation() {
+            // Reset server-side session
+            fetch('/reset', { method: 'POST' }).catch(() => {});
+            const container = document.getElementById('messagesContainer');
+            container.innerHTML = `
+                <div class="welcome-screen" id="welcomeScreen">
+                    <div class="welcome-icon">⛅</div>
+                    <h2>Welcome to Weather Assistant</h2>
+                    <p>Ask me about current conditions, forecasts, or historical weather for any city around the world.</p>
+                    <div class="suggestions">
+                        <button class="suggestion" onclick="askQuestion('What is the weather in New York right now?')">🌆 New York weather</button>
+                        <button class="suggestion" onclick="askQuestion('Give me a 5-day forecast for London.')">📅 London 5-day forecast</button>
+                        <button class="suggestion" onclick="askQuestion('Will it rain in Tokyo tomorrow?')">🌧️ Rain in Tokyo?</button>
+                        <button class="suggestion" onclick="askQuestion('What is the humidity and wind speed in Miami?')">💨 Miami conditions</button>
+                        <button class="suggestion" onclick="requestLocation()">📍 My location</button>
+                    </div>
+                </div>`;
+            document.getElementById('queryInput').focus();
+        }
+
+        function requestLocation() {
+            if (!navigator.geolocation) {
+                textarea.placeholder = 'Geolocation not supported by your browser';
+                setTimeout(() => { textarea.placeholder = 'Ask about the weather anywhere...'; }, 4000);
+                return;
+            }
+            const locationBtn = document.getElementById('locationBtn');
+            locationBtn.classList.add('locating');
+            locationBtn.disabled = true;
+
+            navigator.geolocation.getCurrentPosition(
+                (pos) => {
+                    const lat = pos.coords.latitude.toFixed(4);
+                    const lon = pos.coords.longitude.toFixed(4);
+                    textarea.value = `What is the current weather at my location? (latitude: ${lat}, longitude: ${lon})`;
+                    locationBtn.classList.remove('locating');
+                    locationBtn.disabled = false;
+                    sendQuery();
+                },
+                (err) => {
+                    locationBtn.classList.remove('locating');
+                    locationBtn.disabled = false;
+                    const messages = {
+                        1: 'Location access denied. Please allow location permissions and try again.',
+                        2: 'Location unavailable. Please try again.',
+                        3: 'Location request timed out. Please try again.',
+                    };
+                    textarea.placeholder = messages[err.code] || 'Could not detect location.';
+                    setTimeout(() => { textarea.placeholder = 'Ask about the weather anywhere...'; }, 4000);
+                },
+                { timeout: 10000, maximumAge: 60000 }
+            );
+        }
+
+        document.getElementById('queryInput').focus();
     </script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.0.6/purify.min.js"></script>
 </body>
 </html>

@@ -21,7 +21,7 @@ langfuse = get_client()
 
 # Get the OpenWeatherMap API key from environment variables
 api_key = os.getenv('WEATHER_API_KEY')
-def get_weather_by_city(city_name, api_key, country_code=None, state_code=None, exclude=None):
+def get_weather_by_city(city_name, api_key, country_code=None, state_code=None, exclude=None, units='imperial'):
     """
     Fetches weather data for a city by name using OpenWeatherMap's Geocoding and One Call APIs.
 
@@ -63,7 +63,7 @@ def get_weather_by_city(city_name, api_key, country_code=None, state_code=None, 
         lon = geo_data[0]['lon']
         
         # Step 2: Fetch weather data using One Call API
-        return get_openweather_onecall(lat, lon, api_key, exclude)
+        return get_openweather_onecall(lat, lon, api_key, exclude, units)
     
     except requests.exceptions.RequestException as e:
         print(f"Geocoding API error: {e}")
@@ -71,22 +71,80 @@ def get_weather_by_city(city_name, api_key, country_code=None, state_code=None, 
 
 
 # Reuse the existing One Call API function
-def get_openweather_onecall(lat, lon, api_key, exclude=None):
+def get_openweather_onecall(lat, lon, api_key, exclude=None, units='imperial'):
     """
-    (The original One Call API function from earlier)
+    Fetches current weather + forecast from OpenWeatherMap One Call API by coordinates.
     """
-    url = os.getenv('OPENWEATHER_ONECALL_API_URL', 'https://api.openweathermap.org/data/2.5/weather')
-    params = {'lat': lat, 'lon': lon, 'appid': os.getenv('WEATHER_API_KEY')}
-    
+    url = os.getenv('OPENWEATHER_ONECALL_API_URL', 'https://api.openweathermap.org/data/2.5/onecall')
+    params = {
+        'lat': lat,
+        'lon': lon,
+        'appid': os.getenv('WEATHER_API_KEY'),
+        'units': units,
+    }
+
     if exclude:
         params['exclude'] = exclude if isinstance(exclude, str) else ','.join(exclude)
-    
+
     try:
         response = requests.get(url, params=params)
         response.raise_for_status()
         return response.json()
     except requests.exceptions.RequestException as e:
         print(f"One Call API error: {e}")
+        return None
+
+
+def get_current_weather(lat, lon, units='imperial'):
+    """
+    Fetches current weather conditions from OpenWeatherMap's free-tier /data/2.5/weather endpoint.
+    """
+    url = 'https://api.openweathermap.org/data/2.5/weather'
+    params = {
+        'lat': lat,
+        'lon': lon,
+        'appid': os.getenv('WEATHER_API_KEY'),
+        'units': units,
+    }
+    try:
+        response = requests.get(url, params=params)
+        response.raise_for_status()
+        return response.json()
+    except requests.exceptions.RequestException as e:
+        print(f"Current weather API error: {e}")
+        return None
+
+
+def get_forecast(lat, lon, api_key, units='imperial', cnt=40):
+    """
+    Fetches a 5-day / 3-hour forecast from OpenWeatherMap Forecast API.
+    This is available on the free tier and returns up to 40 data points
+    (5 days x 8 intervals per day).
+
+    Parameters:
+    lat (float): Latitude
+    lon (float): Longitude
+    api_key (str): OpenWeatherMap API key
+    units (str): 'imperial' (°F), 'metric' (°C), or 'standard' (Kelvin)
+    cnt (int): Number of 3-hour intervals to return (max 40)
+
+    Returns:
+    dict: Forecast data or None on error
+    """
+    url = 'https://api.openweathermap.org/data/2.5/forecast'
+    params = {
+        'lat': lat,
+        'lon': lon,
+        'appid': os.getenv('WEATHER_API_KEY'),
+        'units': units,
+        'cnt': cnt,
+    }
+    try:
+        response = requests.get(url, params=params)
+        response.raise_for_status()
+        return response.json()
+    except requests.exceptions.RequestException as e:
+        print(f"Forecast API error: {e}")
         return None
     
 
@@ -159,7 +217,13 @@ When asked about precipitation, provide only precipitation information.
 When asked about wind, provide only wind information.
 And so on for other weather conditions.
 Use the available API tools to fetch accurate and current weather data.
-If asked about non-weather topics, politely explain that you can only provide weather information."""
+If asked about non-weather topics, politely explain that you can only provide weather information.
+
+Tool selection rules:
+- For CURRENT weather at a lat/lon: use get_current_weather.
+- For a FORECAST at a lat/lon: use get_forecast.
+- For weather by city name: use get_weather_by_city.
+- Do NOT use get_openweather_onecall; it is deprecated and will fail."""
 
 
 # Initialize OpenAI client with Langfuse tracing
@@ -202,6 +266,11 @@ weather_assistant = client.beta.assistants.create(
                             "type": "string"
                         },
                         "nullable": True
+                    },
+                    "units": {
+                        "type": "string",
+                        "enum": ["imperial", "metric", "standard"],
+                        "description": "Unit system: imperial (°F), metric (°C), standard (Kelvin). Default: imperial."
                     }
                 },
                 "required": ["city_name", "api_key"]
@@ -212,7 +281,7 @@ weather_assistant = client.beta.assistants.create(
         "type": "function",
         "function": {
             "name": "get_openweather_onecall",
-            "description": "Fetches weather data from OpenWeatherMap One Call API by coordinates.",
+            "description": "Fetches current weather + 7-day daily forecast from OpenWeatherMap One Call API by coordinates.",
             "parameters": {
                 "type": "object",
                 "properties": {
@@ -235,6 +304,71 @@ weather_assistant = client.beta.assistants.create(
                             "type": "string"
                         },
                         "nullable": True
+                    },
+                    "units": {
+                        "type": "string",
+                        "enum": ["imperial", "metric", "standard"],
+                        "description": "Unit system: imperial (°F), metric (°C), standard (Kelvin). Default: imperial."
+                    }
+                },
+                "required": ["lat", "lon", "api_key"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "get_current_weather",
+            "description": "Fetches current weather conditions by coordinates using the free-tier OpenWeatherMap API. Use this for current weather requests when lat/lon are provided.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "lat": {
+                        "type": "number",
+                        "description": "Latitude"
+                    },
+                    "lon": {
+                        "type": "number",
+                        "description": "Longitude"
+                    },
+                    "units": {
+                        "type": "string",
+                        "enum": ["imperial", "metric", "standard"],
+                        "description": "Unit system: imperial (°F), metric (°C), standard (Kelvin). Default: imperial."
+                    }
+                },
+                "required": ["lat", "lon"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "get_forecast",
+            "description": "Fetches a 5-day / 3-hour step forecast from OpenWeatherMap Forecast API (free tier). Use this for multi-day or 7-day forecast requests.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "lat": {
+                        "type": "number",
+                        "description": "Latitude"
+                    },
+                    "lon": {
+                        "type": "number",
+                        "description": "Longitude"
+                    },
+                    "api_key": {
+                        "type": "string",
+                        "description": "OpenWeatherMap API key"
+                    },
+                    "units": {
+                        "type": "string",
+                        "enum": ["imperial", "metric", "standard"],
+                        "description": "Unit system: imperial (°F), metric (°C), standard (Kelvin). Default: imperial."
+                    },
+                    "cnt": {
+                        "type": "integer",
+                        "description": "Number of 3-hour forecast intervals to return (max 40 = 5 days). Default: 40."
                     }
                 },
                 "required": ["lat", "lon", "api_key"]
@@ -470,18 +604,32 @@ def get_outputs_for_tools(tool_call):
 
         # Tool function mapping
         tool_dispatcher = {
+            "get_current_weather": lambda args: get_current_weather(
+                lat=args.get("lat"),
+                lon=args.get("lon"),
+                units=args.get("units", "imperial")
+            ),
             "get_weather_by_city": lambda args: get_weather_by_city(
                 city_name=args.get("city_name"),
                 api_key=args.get("api_key"),
                 country_code=args.get("country_code"),
                 state_code=args.get("state_code"),
-                exclude=args.get("exclude")
+                exclude=args.get("exclude"),
+                units=args.get("units", "imperial")
             ),
             "get_openweather_onecall": lambda args: get_openweather_onecall(
                 lat=args.get("lat"),
                 lon=args.get("lon"),
                 api_key=args.get("api_key"),
-                exclude=args.get("exclude")
+                exclude=args.get("exclude"),
+                units=args.get("units", "imperial")
+            ),
+            "get_forecast": lambda args: get_forecast(
+                lat=args.get("lat"),
+                lon=args.get("lon"),
+                api_key=args.get("api_key"),
+                units=args.get("units", "imperial"),
+                cnt=args.get("cnt", 40)
             ),
             "get_historical_weather": lambda args: get_historical_weather(
                 lat=args.get("lat"),
@@ -544,6 +692,12 @@ def get_outputs_for_tools(tool_call):
 @app.route('/')
 def index():
     return render_template('index.html')
+
+@app.route('/reset', methods=['POST'])
+def reset():
+    session.pop('thread_id', None)
+    session.modified = True
+    return jsonify({"status": "ok"})
 
 if __name__ == "__main__":
     app.run(host='0.0.0.0', port=5000, debug=True)
