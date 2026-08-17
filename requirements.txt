@@ -1,12 +1,58 @@
-# Pinned to the versions this app is developed and tested against. Leaving these
-# unpinned let Render build against langfuse 4.x, whose client dropped
-# update_current_trace() and returned HTTP 500 from /ask.
-tenacity==8.2.3
-requests==2.31.0
+# Fully pinned to the dependency closure this app is developed and tested against
+# (local python 3.12.3). Unpinned deps have broken production twice: langfuse 4.x
+# dropped update_current_trace(), and httpx 0.28 removed the `proxies` kwarg that
+# openai 1.54 passes. Transitive pins are included deliberately - pinning only the
+# direct dependencies is not enough to make a build reproducible.
+#
+# To refresh: upgrade locally, verify /ask end to end, then re-freeze this closure.
+
+# --- direct dependencies ---
+flask[async]==3.0.0
+Flask-Cors==4.0.0
+Flask-Session==0.6.0
+langfuse==3.6.2
 openai==1.54.0
 python-dotenv==1.0.1
 pytz==2025.2
-Flask-Session==0.6.0
-flask[async]==3.0.0
-Flask-Cors==4.0.0
-langfuse==3.6.2
+requests==2.31.0
+tenacity==8.2.3
+
+# --- transitive dependencies, pinned for reproducibility ---
+annotated-types==0.7.0
+anyio==4.13.0
+asgiref==3.8.1
+backoff==2.2.1
+blinker==1.8.2
+cachelib==0.13.0
+certifi==2026.1.4
+charset-normalizer==3.4.4
+click==8.3.2
+distro==1.9.0
+googleapis-common-protos==1.70.0
+h11==0.16.0
+httpcore==1.0.9
+httpx==0.27.2
+idna==3.11
+importlib-metadata==8.7.0
+itsdangerous==2.2.0
+jinja2==3.1.4
+jiter==0.10.0
+markupsafe==2.1.5
+opentelemetry-api==1.37.0
+opentelemetry-exporter-otlp-proto-common==1.37.0
+opentelemetry-exporter-otlp-proto-http==1.37.0
+opentelemetry-proto==1.37.0
+opentelemetry-sdk==1.37.0
+opentelemetry-semantic-conventions==0.58b0
+packaging==25.0
+protobuf==5.29.5
+pydantic==2.12.5
+pydantic-core==2.41.5
+sniffio==1.3.1
+tqdm==4.67.1
+typing-extensions==4.15.0
+typing-inspection==0.4.2
+urllib3==2.6.3
+werkzeug==3.0.1
+wrapt==1.17.2
+zipp==3.23.0
