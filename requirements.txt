@@ -1,11 +1,12 @@
-tenacity
-requests
-openai
-python-dotenv
-pytz
-flask_session
-flask
-flask_cors
-flask[async]
-langfuse
-
+# Pinned to the versions this app is developed and tested against. Leaving these
+# unpinned let Render build against langfuse 4.x, whose client dropped
+# update_current_trace() and returned HTTP 500 from /ask.
+tenacity==8.2.3
+requests==2.31.0
+openai==1.54.0
+python-dotenv==1.0.1
+pytz==2025.2
+Flask-Session==0.6.0
+flask[async]==3.0.0
+Flask-Cors==4.0.0
+langfuse==3.6.2

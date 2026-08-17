@@ -12,12 +12,36 @@ import logging
 from dotenv import load_dotenv
 from langfuse.openai import OpenAI
 from langfuse import observe, get_client
+from openai import OpenAIError
 
 # Load environment variables from .env file
 load_dotenv()
 
 # Initialize Langfuse client for trace updates
 langfuse = get_client()
+
+
+def trace_update(**kwargs):
+    """
+    Best-effort Langfuse trace update.
+
+    Tracing is observability, not application logic, so an SDK mismatch must never
+    fail the request. langfuse 4.x removed Langfuse.update_current_trace(), which
+    previously surfaced as an HTTP 500 from /ask on any host that resolved a newer
+    version than the pinned one.
+    """
+    try:
+        langfuse.update_current_trace(**kwargs)
+    except Exception as e:
+        print(f"Langfuse trace update skipped: {type(e).__name__}: {e}")
+
+
+def span_update(**kwargs):
+    """Best-effort Langfuse span update. See trace_update()."""
+    try:
+        langfuse.update_current_span(**kwargs)
+    except Exception as e:
+        print(f"Langfuse span update skipped: {type(e).__name__}: {e}")
 
 # Get the OpenWeatherMap API key from environment variables
 api_key = os.getenv('WEATHER_API_KEY')
@@ -62,17 +86,20 @@ def annotate_units(data, units='imperial'):
     }
 def get_weather_by_city(city_name, api_key, country_code=None, state_code=None, exclude=None, units='imperial'):
     """
-    Fetches weather data for a city by name using OpenWeatherMap's Geocoding and One Call APIs.
+    Fetches current weather for a city by name using OpenWeatherMap's Geocoding API
+    to resolve coordinates, then the free-tier current weather endpoint.
 
     Parameters:
     city_name (str): Name of the city (e.g., "London").
     api_key (str): OpenWeatherMap API key.
     country_code (str, optional): Country code (e.g., "GB" for United Kingdom).
     state_code (str, optional): State code (e.g., "CA" for California).
-    exclude (list or str, optional): Parts to exclude from One Call API response.
+    exclude (list or str, optional): Accepted for backwards compatibility and ignored;
+        the current weather endpoint has no excludable sections.
+    units (str): 'imperial' (°F), 'metric' (°C), or 'standard' (Kelvin).
 
     Returns:
-    dict: Weather data from One Call API, or None if an error occurs.
+    dict: Unit-annotated current weather, or None if an error occurs.
     """
     # Step 1: Get coordinates using Geocoding API
     geocoding_url = "https://api.openweathermap.org/geo/1.0/direct?"
@@ -100,10 +127,12 @@ def get_weather_by_city(city_name, api_key, country_code=None, state_code=None, 
         
         lat = geo_data[0]['lat']
         lon = geo_data[0]['lon']
-        
-        # Step 2: Fetch weather data using One Call API
-        return get_openweather_onecall(lat, lon, api_key, exclude, units)
-    
+
+        # Step 2: Fetch current conditions. This deliberately does NOT use
+        # get_openweather_onecall: One Call 2.5 is deprecated and returns 401 on
+        # free-tier keys, which made every city lookup fail.
+        return get_current_weather(lat, lon, units)
+
     except requests.exceptions.RequestException as e:
         print(f"Geocoding API error: {e}")
         return None
@@ -498,6 +527,38 @@ app.config.update(
 )
 Session(app)
 CORS(app, supports_credentials=True, resources={r"/*": {"origins": "*"}})
+@app.errorhandler(OpenAIError)
+def handle_openai_error(error):
+    """
+    Returns OpenAI SDK failures as JSON instead of an opaque HTTP 500.
+
+    The thread/run calls in ask() can raise for reasons the caller needs to see
+    (bad key, quota, an unknown thread id, an already-active run). Without this
+    the reason only reaches the server's stderr.
+    """
+    message = str(error)
+    print(f"OpenAI API error: {type(error).__name__}: {message}")
+    print(traceback.format_exc())
+
+    # A thread whose previous run never finished (e.g. the server was restarted
+    # mid-poll) rejects every subsequent message. Drop the stored thread so the
+    # next request starts a fresh conversation instead of failing forever.
+    thread_reset = "while a run" in message and "is active" in message
+    if thread_reset:
+        session.pop("thread_id", None)
+        session.modified = True
+        message += (
+            " The stored conversation thread was stuck and has been cleared - "
+            "please send your message again."
+        )
+
+    return jsonify({
+        "error": message,
+        "error_type": type(error).__name__,
+        "thread_reset": thread_reset,
+    }), 502
+
+
 @app.route('/ask', methods=['POST'])
 @observe()
 def ask():
@@ -507,7 +568,7 @@ def ask():
         return jsonify({"error": "No question provided"}), 400
 
     # Log user input to Langfuse
-    langfuse.update_current_trace(
+    trace_update(
         name="weather_assistant_conversation",
         input={"question": question},
         metadata={"endpoint": "/ask"}
@@ -523,7 +584,7 @@ def ask():
     print("Using thread:", thread_id)
 
     # Add thread_id to trace metadata
-    langfuse.update_current_trace(
+    trace_update(
         session_id=thread_id,
         user_id=session.get("user_id", "anonymous")
     )
@@ -642,7 +703,7 @@ def ask():
     print(f"Final message: {final_message}")
 
     # Update trace with the final response
-    langfuse.update_current_trace(
+    trace_update(
         output={"response": final_message},
         metadata={
             "thread_id": thread_id,
@@ -663,7 +724,7 @@ def _error_response(thread_id, run, message, error_code=None):
     """Log a failed run to stdout and Langfuse, and build the JSON error response."""
     print(f"Returning error for run {run.id}: {message}")
 
-    langfuse.update_current_trace(
+    trace_update(
         output={"error": message},
         metadata={
             "thread_id": thread_id,
@@ -673,7 +734,7 @@ def _error_response(thread_id, run, message, error_code=None):
             "error_message": message,
         }
     )
-    langfuse.update_current_span(level="ERROR", status_message=message)
+    span_update(level="ERROR", status_message=message)
 
     return jsonify({
         "thread_id": thread_id,
@@ -703,7 +764,7 @@ def get_outputs_for_tools(tool_call):
                 "tool_call_id": tool_call.id,
                 "error": f"Invalid JSON in arguments: {str(e)}"
             }
-            langfuse.update_current_span(
+            span_update(
                 name=f"tool_execution_{tool_name}",
                 input={"tool_call_id": tool_call.id, "raw_arguments": tool_call.function.arguments},
                 output=error_result,
@@ -715,7 +776,7 @@ def get_outputs_for_tools(tool_call):
         print(f"With arguments: {arguments}")
 
         # Log tool execution start
-        langfuse.update_current_span(
+        span_update(
             name=f"tool_execution_{tool_name}",
             input={
                 "tool_name": tool_name,
@@ -772,7 +833,7 @@ def get_outputs_for_tools(tool_call):
                 "tool_call_id": tool_call.id,
                 "error": f"Unknown tool: {tool_name}"
             }
-            langfuse.update_current_span(
+            span_update(
                 output=error_result,
                 level="ERROR"
             )
@@ -786,7 +847,7 @@ def get_outputs_for_tools(tool_call):
         }
 
         # Log successful tool execution
-        langfuse.update_current_span(
+        span_update(
             output={"result": result},
             level="DEFAULT"
         )
@@ -805,7 +866,7 @@ def get_outputs_for_tools(tool_call):
         }
 
         # Log error in Langfuse
-        langfuse.update_current_span(
+        span_update(
             output={"error": error_msg, "traceback": error_details},
             level="ERROR"
         )
