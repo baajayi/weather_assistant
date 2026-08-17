@@ -306,10 +306,7 @@ Tool selection rules:
 # Initialize OpenAI client with Langfuse tracing
 client = OpenAI()
 
-weather_assistant = client.beta.assistants.create(
-    instructions=system_prompt,
-    name="Weather Assistant",
-    tools = [
+ASSISTANT_TOOLS = [
     {
         "type": "function",
         "function": {
@@ -512,9 +509,30 @@ weather_assistant = client.beta.assistants.create(
             }
         }
     }
-],
-    model="gpt-4o-mini"
-)
+]
+
+ASSISTANT_MODEL = "gpt-4o-mini"
+
+# Cached assistant, created on first use rather than at import. Creating it at
+# import made startup depend on a network round-trip to OpenAI before Flask could
+# bind a port, so a slow or failing API call stalled the deploy instead of
+# producing an error a caller could see.
+_weather_assistant = None
+
+
+def get_assistant():
+    """Returns the weather assistant, creating it on first call."""
+    global _weather_assistant
+    if _weather_assistant is None:
+        _weather_assistant = client.beta.assistants.create(
+            instructions=system_prompt,
+            name="Weather Assistant",
+            tools=ASSISTANT_TOOLS,
+            model=ASSISTANT_MODEL,
+        )
+        print(f"Assistant created: {_weather_assistant.id}")
+    return _weather_assistant
+
 
 app = Flask(__name__)
 app.config['SESSION_TYPE'] = 'filesystem'
@@ -598,7 +616,7 @@ def ask():
     # Start a new run and block until complete
     run = client.beta.threads.runs.create_and_poll(
         thread_id=thread_id,
-        assistant_id=weather_assistant.id
+        assistant_id=get_assistant().id
     )
     while True:
         if run.status == "requires_action":
@@ -884,4 +902,11 @@ def reset():
     return jsonify({"status": "ok"})
 
 if __name__ == "__main__":
-    app.run(host='0.0.0.0', port=5000, debug=True)
+    # Render (and most PaaS hosts) assign the port via $PORT and wait for the
+    # service to listen on it. Hardcoding 5000 meant nothing ever bound the
+    # expected port, so deploys hung until the port scan timed out.
+    port = int(os.getenv('PORT', 5000))
+    # Never enable the Werkzeug debugger outside local development: it exposes an
+    # interactive console on unhandled exceptions.
+    debug = os.getenv('FLASK_DEBUG', '').lower() in ('1', 'true', 'yes')
+    app.run(host='0.0.0.0', port=port, debug=debug)
