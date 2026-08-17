@@ -21,6 +21,45 @@ langfuse = get_client()
 
 # Get the OpenWeatherMap API key from environment variables
 api_key = os.getenv('WEATHER_API_KEY')
+
+# OpenWeatherMap reports temperature and wind in units that depend on the `units`
+# parameter, but the JSON payload itself carries no unit labels. Without them the
+# model guesses (and mislabels imperial wind speed as m/s), so every weather tool
+# returns its payload wrapped with the units that were actually requested.
+UNIT_LABELS = {
+    'imperial': {'temperature': '°F', 'wind_speed': 'mph'},
+    'metric': {'temperature': '°C', 'wind_speed': 'm/s'},
+    'standard': {'temperature': 'K', 'wind_speed': 'm/s'},
+}
+
+
+def annotate_units(data, units='imperial'):
+    """
+    Wraps an OpenWeatherMap payload with explicit unit labels.
+
+    Parameters:
+    data (dict): Raw API response, or None if the request failed.
+    units (str): 'imperial', 'metric', or 'standard'.
+
+    Returns:
+    dict: {'units', 'temperature_unit', 'wind_speed_unit', ..., 'data'}, or None if data is None.
+    """
+    if data is None:
+        return None
+
+    labels = UNIT_LABELS.get(units, UNIT_LABELS['imperial'])
+    return {
+        'units': units,
+        'temperature_unit': labels['temperature'],
+        'wind_speed_unit': labels['wind_speed'],
+        # These are fixed by the API regardless of the `units` parameter.
+        'wind_direction_unit': 'degrees',
+        'precipitation_unit': 'mm',
+        'pressure_unit': 'hPa',
+        'humidity_unit': '%',
+        'visibility_unit': 'm',
+        'data': data,
+    }
 def get_weather_by_city(city_name, api_key, country_code=None, state_code=None, exclude=None, units='imperial'):
     """
     Fetches weather data for a city by name using OpenWeatherMap's Geocoding and One Call APIs.
@@ -89,7 +128,7 @@ def get_openweather_onecall(lat, lon, api_key, exclude=None, units='imperial'):
     try:
         response = requests.get(url, params=params)
         response.raise_for_status()
-        return response.json()
+        return annotate_units(response.json(), units)
     except requests.exceptions.RequestException as e:
         print(f"One Call API error: {e}")
         return None
@@ -109,7 +148,7 @@ def get_current_weather(lat, lon, units='imperial'):
     try:
         response = requests.get(url, params=params)
         response.raise_for_status()
-        return response.json()
+        return annotate_units(response.json(), units)
     except requests.exceptions.RequestException as e:
         print(f"Current weather API error: {e}")
         return None
@@ -142,7 +181,7 @@ def get_forecast(lat, lon, api_key, units='imperial', cnt=40):
     try:
         response = requests.get(url, params=params)
         response.raise_for_status()
-        return response.json()
+        return annotate_units(response.json(), units)
     except requests.exceptions.RequestException as e:
         print(f"Forecast API error: {e}")
         return None
@@ -167,11 +206,12 @@ def format_weather_response(raw_text: str) -> str:
     return formatted
 
 
-def get_historical_weather(lat: float, lon: float, api_key: str, 
-                          start: int, cnt: int, data_type: str = 'hour') -> dict:
+def get_historical_weather(lat: float, lon: float, api_key: str,
+                          start: int, cnt: int, data_type: str = 'hour',
+                          units: str = 'imperial') -> dict:
     """
     Fetches historical weather data from OpenWeatherMap's History API.
-    
+
     Parameters:
     lat (float): Latitude of the location
     lon (float): Longitude of the location
@@ -179,25 +219,27 @@ def get_historical_weather(lat: float, lon: float, api_key: str,
     start (int): Start time in UNIX timestamp (UTC)
     cnt (int): Number of data points to retrieve (max 24 for hourly, 30 for daily)
     data_type (str): Type of data - 'hour' or 'day' (default: 'hour')
+    units (str): 'imperial' (°F), 'metric' (°C), or 'standard' (Kelvin)
 
     Returns:
     dict: JSON response or None if error occurs
     """
     url = "https://api.openweathermap.org/data/2.5/history/city"
-    
+
     params = {
         'lat': lat,
         'lon': lon,
         'type': data_type,
         'start': start,
         'cnt': cnt,
-        'appid': api_key
+        'appid': api_key,
+        'units': units,
     }
 
     try:
         response = requests.get(url, params=params)
         response.raise_for_status()
-        return response.json()
+        return annotate_units(response.json(), units)
     except requests.exceptions.HTTPError as e:
         print(f"HTTP Error: {e.response.status_code} - {e.response.text}")
     except requests.exceptions.RequestException as e:
@@ -218,6 +260,12 @@ When asked about wind, provide only wind information.
 And so on for other weather conditions.
 Use the available API tools to fetch accurate and current weather data.
 If asked about non-weather topics, politely explain that you can only provide weather information.
+
+Unit rules:
+- Every weather tool returns the readings under a "data" key, alongside explicit unit
+  labels such as "temperature_unit" and "wind_speed_unit".
+- Always report values using those labels. Never infer or assume a unit from the value
+  itself, and never convert between unit systems unless the user asks you to.
 
 Tool selection rules:
 - For CURRENT weather at a lat/lon: use get_current_weather.
@@ -407,6 +455,11 @@ weather_assistant = client.beta.assistants.create(
                         "type": "string",
                         "enum": ["hour", "day"],
                         "description": "Type of data to retrieve (hour or day)"
+                    },
+                    "units": {
+                        "type": "string",
+                        "enum": ["imperial", "metric", "standard"],
+                        "description": "Unit system: imperial (°F), metric (°C), standard (Kelvin). Default: imperial."
                     }
                 },
                 "required": ["lat", "lon", "api_key", "start", "cnt"]
@@ -527,8 +580,13 @@ def ask():
             )
         
         # Check if run is complete
-        if run.status in ["completed", "failed", "expired"]:
+        if run.status in ["completed", "failed", "expired", "cancelled", "incomplete"]:
             print(f"Run status: {run.status}")
+            if run.last_error:
+                print(f"Run last_error: {run.last_error.code}: {run.last_error.message}")
+            incomplete_details = getattr(run, "incomplete_details", None)
+            if incomplete_details:
+                print(f"Run incomplete_details: {incomplete_details}")
             break
             
         # If we're here, the run is still in progress
@@ -540,7 +598,47 @@ def ask():
         print(f"Run status: {run.status}")
 
 
-    final_message = format_weather_response(client.beta.threads.messages.list(thread_id=thread_id).data[0].content[0].text.value)
+    # If the run never completed there is no assistant reply to read. Returning the
+    # newest thread message here would hand back the user's own question.
+    if run.status != "completed":
+        incomplete_details = getattr(run, "incomplete_details", None)
+        if run.last_error:
+            error_code = run.last_error.code
+            error_message = run.last_error.message
+        elif incomplete_details:
+            # 'incomplete' runs report a reason here rather than in last_error.
+            error_code = getattr(incomplete_details, "reason", None)
+            error_message = f"run stopped early (reason: {error_code})"
+        else:
+            error_code = None
+            error_message = "The API did not report an error message."
+        return _error_response(
+            thread_id,
+            run,
+            f"The assistant run {run.status}: {error_message}",
+            error_code=error_code,
+        )
+
+    assistant_message = next(
+        (
+            message
+            for message in client.beta.threads.messages.list(thread_id=thread_id, order="desc").data
+            if message.role == "assistant" and message.run_id == run.id
+        ),
+        None,
+    )
+    text_block = next(
+        (block for block in (assistant_message.content if assistant_message else []) if block.type == "text"),
+        None,
+    )
+    if text_block is None:
+        return _error_response(
+            thread_id,
+            run,
+            "The run completed but produced no assistant text reply.",
+        )
+
+    final_message = format_weather_response(text_block.text.value)
     print(f"Final message: {final_message}")
 
     # Update trace with the final response
@@ -559,6 +657,30 @@ def ask():
         "status": run.status,
         "response": final_message
     })
+
+
+def _error_response(thread_id, run, message, error_code=None):
+    """Log a failed run to stdout and Langfuse, and build the JSON error response."""
+    print(f"Returning error for run {run.id}: {message}")
+
+    langfuse.update_current_trace(
+        output={"error": message},
+        metadata={
+            "thread_id": thread_id,
+            "run_id": run.id,
+            "status": run.status,
+            "error_code": error_code,
+            "error_message": message,
+        }
+    )
+    langfuse.update_current_span(level="ERROR", status_message=message)
+
+    return jsonify({
+        "thread_id": thread_id,
+        "run_id": run.id,
+        "status": run.status,
+        "error": message,
+    }), 502
 
 @observe()
 def get_outputs_for_tools(tool_call):
@@ -637,7 +759,8 @@ def get_outputs_for_tools(tool_call):
                 api_key=args.get("api_key"),
                 start=args.get("start"),
                 cnt=args.get("cnt"),
-                data_type=args.get("data_type", "hour")
+                data_type=args.get("data_type", "hour"),
+                units=args.get("units", "imperial")
             ),
             "datetime_to_utc_timestamp": lambda args: datetime_to_utc_timestamp(
                 datetime.fromisoformat(args.get("dt"))

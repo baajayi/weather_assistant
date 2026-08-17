@@ -1,0 +1,14 @@
+# Environment / secrets
+.env
+
+# Python
+__pycache__/
+*.py[cod]
+venv/
+.venv/
+
+# Flask server-side session store
+flask_session/
+
+# Zappa build artifacts
+*.tar.gz

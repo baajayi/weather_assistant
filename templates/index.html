@@ -739,15 +739,18 @@
                     body: JSON.stringify({ question: query })
                 });
 
-                if (!response.ok) throw new Error(`HTTP ${response.status}`);
+                const data = await response.json().catch(() => ({}));
 
-                const data = await response.json();
+                if (!response.ok || data.error) {
+                    throw new Error(data.error || `HTTP ${response.status}`);
+                }
+
                 const text = data.response || 'No response received.';
                 finalizeMessage(messageId, text);
 
             } catch (error) {
                 console.error('Request error:', error);
-                finalizeMessage(messageId, 'Sorry, I encountered an error. Please try again.');
+                finalizeMessage(messageId, `Sorry, I encountered an error: ${error.message}`);
             }
 
             sendBtn.disabled = false;
